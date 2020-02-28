@@ -1,0 +1,43 @@
+sudo: required
+services:
+  - docker
+
+before_install:
+  # In eerste instantie wordt de image aangemaakt die de tests zal uitvoeren op de
+  # react applicatie. Hierbij wordt gebruik gemaakt van de Dockerfile.dev
+  # aangezien enkel deze image over de mogelijkheid beschikt om de tests uit te voeren.
+  # De productie dockerfile zal enkel de statische bestanden genereren.
+
+  # 2de opmerking: .travis.yml bevindt zich in de root, dus de juiste context
+  # meegeven
+  - docker build -t kurtvanhal/react-test -f ./client/Dockerfile.dev ./client
+
+script:
+  - docker run -e CI=true kurtvanhal/react-test npm run test
+
+# Build images gebaseerd op de production Dockerfile
+after_success:
+  - docker build -t kurtvanhal/multi-client ./client
+  - docker build -t kurtvanhal/multi-nginx ./nginx
+  - docker build -t kurtvanhal/multi-server ./server
+  - docker build -t kurtvanhal/multi-worker ./worker
+  # Inloggen in docker CLI (login in 1 commando)
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_ID" --password-stdin
+  # Images naar docker hub pushen
+  - docker push kurtvanhal/multi-client
+  - docker push kurtvanhal/multi-nginx
+  - docker push kurtvanhal/multi-server
+  - docker push kurtvanhal/multi-worker
+
+deploy:
+  provider: elasticbeanstalk
+  region: "eu-west-3"
+  app: "multi-docker"
+  env: "MultiDocker-env"
+  bucket_name: "elasticbeanstalk-eu-west-3-506608664154"
+  bucket_path: "docker-multi"
+  on:
+    branch: master
+  access_key_id: $AWS_ACCESS_KEY
+  secret_access_key:
+    secure: $AWS_SECRET_KEY

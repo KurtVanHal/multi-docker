@@ -1,0 +1,59 @@
+version: "3"
+services:
+  postgres:
+    image: "postgres:latest"
+    environment:
+      POSTGRES_PASSWORD: example
+  redis:
+    image: "redis:latest"
+  nginx:
+    restart: always
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./nginx
+    ports:
+      # localhost:3050 zal naar nginx verwijzen
+      - "3050:80"
+  api:
+    build:
+      # dockerfile specifieert ENKEL de naam van het bestand
+      # De locatie wordt door de context aangegeven.
+      dockerfile: Dockerfile.dev
+      context: ./server
+    volumes:
+      # Bookmark de node_modules
+      - /app/node_modules
+      # referentie voorzien in container naar ./server op lokale machine
+      - ./server:/app
+    # Hier worden de environment variables gedefinieerd. Deze zullen in runtime
+    # beschikbaar zijn binnen de container.
+    environment:
+      # Voor de redis host kan worden verwezen naar de redis service.
+      # docker-compose verzorgt hier de link tussen de services.
+      - REDIS_HOST=redis
+      # 6379 kan gevonden worden op docker hub => redis
+      - REDIS_PORT=6379
+      - PGUSER=postgres
+      - PGHOST=postgres
+      - PGDATABASE=postgres
+      - PGPASSWORD=example
+      - PGPORT=5432
+    depends_on:
+      - postgres
+  client:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./client
+    volumes:
+      - /app/node_modules
+      - ./client:/app
+  worker:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./worker
+    volumes:
+      - /app/node_modules
+      - ./worker:/app
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
